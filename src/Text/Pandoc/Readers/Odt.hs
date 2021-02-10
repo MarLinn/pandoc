@@ -15,8 +15,7 @@ module Text.Pandoc.Readers.Odt ( readOdt ) where
 
 import Codec.Archive.Zip
 import qualified Text.XML.Light as XML
-import Text.Pandoc.Readers.XML (parseXMLDoc)
-import qualified Control.Exception as E
+import Text.Pandoc.Readers.XML (parseXMLElement)
 
 import qualified Data.ByteString.Lazy as B
 
@@ -92,6 +91,4 @@ archiveToOdt archive = either (Left. PandocParseError) Right $ do
 --
 entryToXmlElem :: Entry -> Either T.Text XML.Element
 entryToXmlElem =
-  either errorToString Right . parseXMLDoc . UTF8.toTextLazy . fromEntry
- where
-   errorToString = Left . T.pack . E.displayException
+  parseXMLElement . UTF8.toTextLazy . fromEntry
