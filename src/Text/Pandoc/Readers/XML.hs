@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 {- |
    Module      : Text.Pandoc.Readers.XML
    Copyright   : Copyright (C) 2021 John MacFarlane
@@ -26,7 +27,7 @@ import Data.Maybe (mapMaybe)
 parseXMLDoc :: TL.Text -> Maybe Light.Element
 parseXMLDoc =
   Just . elementToElement .  Conduit.documentRoot .
-         Conduit.parseText_ Conduit.def
+    Conduit.parseText_ Conduit.def{ Conduit.psRetainNamespaces = True }
 
 elementToElement :: Conduit.Element -> Light.Element
 elementToElement (Conduit.Element name attribMap nodes) =
@@ -35,7 +36,12 @@ elementToElement (Conduit.Element name attribMap nodes) =
   attrs = map (\(n,v) -> Light.Attr (nameToQname n) (T.unpack v)) $
               M.toList attribMap
   nameToQname (Conduit.Name localName mbns mbpref) =
-   Light.QName (T.unpack localName) (T.unpack <$> mbns) (T.unpack <$> mbpref)
+    case mbpref of
+      Nothing | "xmlns:" `T.isPrefixOf` localName ->
+           Light.QName (T.unpack $ T.drop 6 localName)  (T.unpack <$> mbns)
+                       (Just "xmlns")
+      _ -> Light.QName (T.unpack localName) (T.unpack <$> mbns)
+                       (T.unpack <$> mbpref)
 
 nodeToContent :: Conduit.Node -> Maybe Light.Content
 nodeToContent (Conduit.NodeElement el) =
