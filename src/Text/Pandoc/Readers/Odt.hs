@@ -16,6 +16,7 @@ module Text.Pandoc.Readers.Odt ( readOdt ) where
 import Codec.Archive.Zip
 import qualified Text.XML.Light as XML
 import Text.Pandoc.Readers.XML (parseXMLDoc)
+import qualified Control.Exception as E
 
 import qualified Data.ByteString.Lazy as B
 
@@ -74,10 +75,8 @@ archiveToOdt archive = either (Left. PandocParseError) Right $ do
                    (findEntryByPath "content.xml" archive)
   stylesEntry <- onFailure "Could not find styles.xml"
                    (findEntryByPath "styles.xml" archive)
-  contentElem <- onFailure "Could not find content element"
-                   (entryToXmlElem contentEntry)
-  stylesElem <- onFailure "Could not find styles element"
-                   (entryToXmlElem stylesEntry)
+  contentElem <- entryToXmlElem contentEntry
+  stylesElem <- entryToXmlElem stylesEntry
   styles <- either (\_ -> Left "Could not read styles") Right
                (chooseMax (readStylesAt stylesElem ) (readStylesAt contentElem))
   let filePathIsOdtMedia :: FilePath -> Bool
@@ -91,5 +90,8 @@ archiveToOdt archive = either (Left. PandocParseError) Right $ do
 
 
 --
-entryToXmlElem :: Entry -> Maybe XML.Element
-entryToXmlElem = parseXMLDoc . UTF8.toTextLazy . fromEntry
+entryToXmlElem :: Entry -> Either T.Text XML.Element
+entryToXmlElem =
+  either errorToString Right . parseXMLDoc . UTF8.toTextLazy . fromEntry
+ where
+   errorToString = Left . T.pack . E.displayException

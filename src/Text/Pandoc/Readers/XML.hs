@@ -12,10 +12,13 @@ Bridge to allow using xml-conduit's parser with xml-light's types.
 -}
 module Text.Pandoc.Readers.XML
   ( parseXMLDoc
+  , parseXML
   , module Text.XML.Light.Types
   ) where
 
+import qualified Control.Exception as E
 import qualified Text.XML as Conduit
+import Text.XML.Stream.Parse (XmlException(..))
 import qualified Text.XML.Light as Light
 import Text.XML.Light.Types
 import qualified Data.Text as T
@@ -24,10 +27,16 @@ import qualified Data.Map as M
 import Data.Maybe (mapMaybe)
 
 -- Drop in replacement for parseXMLDoc in xml-light.
-parseXMLDoc :: TL.Text -> Maybe Light.Element
-parseXMLDoc =
-  Just . elementToElement .  Conduit.documentRoot .
-    Conduit.parseText_ Conduit.def{ Conduit.psRetainNamespaces = True }
+parseXMLDoc :: TL.Text -> Either E.SomeException Light.Element
+parseXMLDoc t =
+  elementToElement .  Conduit.documentRoot <$>
+    Conduit.parseText Conduit.def{ Conduit.psRetainNamespaces = True } t
+
+parseXML :: TL.Text -> Either E.SomeException [Light.Content]
+parseXML t = elContent <$>
+  case parseXMLDoc t of
+    Left _  -> parseXMLDoc ("<wrapper>" <> t <> "</wrapper>")
+    Right x -> Right x
 
 elementToElement :: Conduit.Element -> Light.Element
 elementToElement (Conduit.Element name attribMap nodes) =
