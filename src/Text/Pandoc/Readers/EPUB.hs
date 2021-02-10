@@ -41,9 +41,10 @@ import Text.Pandoc.MIME (MimeType)
 import Text.Pandoc.Options (ReaderOptions (..))
 import Text.Pandoc.Readers.HTML (readHtml)
 import Text.Pandoc.Shared (addMetaField, collapseFilePath, escapeURI)
-import qualified Text.Pandoc.UTF8 as UTF8 (toStringLazy)
+import qualified Text.Pandoc.UTF8 as UTF8 (toTextLazy)
 import Text.Pandoc.Walk (query, walk)
 import Text.XML.Light
+import Text.Pandoc.Readers.XML (parseXMLElement)
 
 type Items = M.Map String (FilePath, MimeType)
 
@@ -181,7 +182,7 @@ renameMeta s         = T.pack s
 getManifest :: PandocMonad m => Archive -> m (String, Element)
 getManifest archive = do
   metaEntry <- findEntryByPathE ("META-INF" </> "container.xml") archive
-  docElem <- (parseXMLDocE . UTF8.toStringLazy . fromEntry) metaEntry
+  docElem <- (parseXMLDocE . UTF8.toTextLazy . fromEntry) metaEntry
   let namespaces = mapMaybe attrToNSPair (elAttribs docElem)
   ns <- mkE "xmlns not in namespaces" (lookup "xmlns" namespaces)
   as <- fmap (map attrToPair . elAttribs)
@@ -190,7 +191,7 @@ getManifest archive = do
   let rootdir = dropFileName manifestFile
   --mime <- lookup "media-type" as
   manifest <- findEntryByPathE manifestFile archive
-  (rootdir,) <$> (parseXMLDocE . UTF8.toStringLazy . fromEntry $ manifest)
+  (rootdir,) <$> (parseXMLDocE . UTF8.toTextLazy . fromEntry $ manifest)
 
 -- Fixup
 
@@ -284,8 +285,9 @@ findEntryByPathE :: PandocMonad m => FilePath -> Archive -> m Entry
 findEntryByPathE (normalise . unEscapeString -> path) a =
   mkE ("No entry on path: " ++ path) $ findEntryByPath path a
 
-parseXMLDocE :: PandocMonad m => String -> m Element
-parseXMLDocE doc = mkE "Unable to parse XML doc" $ parseXMLDoc doc
+parseXMLDocE :: PandocMonad m => TL.Text -> m Element
+parseXMLDocE doc =
+  either (throwError . PandocParseError) return $ parseXMLElement doc
 
 findElementE :: PandocMonad m => QName -> Element -> m Element
 findElementE e x = mkE ("Unable to find element: " ++ show e) $ findElement e x
