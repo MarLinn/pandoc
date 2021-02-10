@@ -18,6 +18,7 @@ module Text.Pandoc.Readers.XML
 
 import qualified Control.Exception as E
 import qualified Text.XML as Conduit
+import Text.XML.Unresolved (InvalidEventStream(..))
 import qualified Text.XML.Light as Light
 import Text.XML.Light.Types
 import qualified Data.Text as T
@@ -34,9 +35,13 @@ parseXMLElement t =
 
 parseXMLContents :: TL.Text -> Either T.Text [Light.Content]
 parseXMLContents t =
-  case parseXMLElement t of
-    Left _  -> elContent <$> parseXMLElement ("<wrapper>" <> t <> "</wrapper>")
-    Right x -> Right [Light.Elem x]
+  case Conduit.parseText Conduit.def{ Conduit.psRetainNamespaces = True } t of
+    Left e ->
+      case E.fromException e of
+        Just (ContentAfterRoot _) ->
+          elContent <$> parseXMLElement ("<wrapper>" <> t <> "</wrapper>")
+        _ -> Left . T.pack . E.displayException $ e
+    Right x -> Right [Light.Elem . elementToElement . Conduit.documentRoot $ x]
 
 elementToElement :: Conduit.Element -> Light.Element
 elementToElement (Conduit.Element name attribMap nodes) =
